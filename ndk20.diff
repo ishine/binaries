@@ -1,0 +1,102 @@
+diff --git a/tensorflow/contrib/makefile/compile_android_protobuf.sh b/tensorflow/contrib/makefile/compile_android_protobuf.sh
+index 4355e3e597..43d2519f9e 100755
+--- a/tensorflow/contrib/makefile/compile_android_protobuf.sh
++++ b/tensorflow/contrib/makefile/compile_android_protobuf.sh
+@@ -20,7 +20,7 @@
+ 
+ # Pass ANDROID_API_VERSION as an environment variable to support
+ # a different version of API.
+-android_api_version="${ANDROID_API_VERSION:-21}"
++android_api_version="${ANDROID_API_VERSION:-26}"
+ # Pass cc prefix to set the prefix for cc (e.g. ccache)
+ cc_prefix="${CC_PREFIX}"
+ 
+@@ -35,8 +35,9 @@ arm64-v8a armeabi armeabi-v7a armeabi-v7a-hard mips mips64 x86 x86_64)"
+ }
+ 
+ SCRIPT_DIR=$(dirname $0)
+-ARCHITECTURE=armeabi-v7a
+-
++ARCHITECTURE=arm64-v8a
++NDK_ROOT=/opt/android-ndk-r20
++NDK_ROOT1=/home/alok/Android/arm-26-toolchain-clang
+ # debug options
+ while getopts "a:c" opt_name; do
+   case "$opt_name" in
+@@ -138,13 +139,18 @@ fi
+ echo "Android api version = ${android_api_version} cc_prefix = ${cc_prefix}"
+ 
+ export PATH=\
+-"${NDK_ROOT}/toolchains/${toolchain}/prebuilt/${os_type}-x86_64/bin:$PATH"
+-export SYSROOT=\
+-"${NDK_ROOT}/platforms/android-${android_api_version}/arch-${sysroot_arch}"
+-export CC="${cc_prefix} ${bin_prefix}-gcc --sysroot ${SYSROOT}"
+-export CXX="${cc_prefix} ${bin_prefix}-g++ --sysroot ${SYSROOT}"
+-export CXXSTL=\
+-"${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9/libs/${ARCHITECTURE}"
++"${NDK_ROOT}/toolchains/llvm/prebuilt/${os_type}-x86_64/bin:$PATH:${NDK_ROOT}/bin"
++#export SYSROOT=\
++#"${NDK_ROOT}/platforms/android-${android_api_version}/arch-${sysroot_arch}"
++#export CC="${cc_prefix} ${bin_prefix}-gcc --sysroot ${SYSROOT}"
++#export CXX="${cc_prefix} ${bin_prefix}-g++ --sysroot ${SYSROOT}"
++#export CXXSTL=\
++#"${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9/libs/${ARCHITECTURE}"
++
++export SYSROOT="${NDK_ROOT}/sysroot"
++export CC="${NDK_ROOT1/bin/aarch64-linux-android-clang -isystem ${NDK_ROOT}/sysroot/usr/include/aarch64-linux-android  --sysroot ${SYSROOT} -D__ANDROID_API__=26"
++export CXX="${NDK_ROOT1}/bin/aarch64-linux-android-clang++  -isystem ${NDK_ROOT}/sysroot/usr/include/aarch64-linux-android --sysroot ${SYSROOT} -D__ANDROID_API__=26"
++#export CXXSTL=${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9
+ 
+ ./autogen.sh
+ if [ $? -ne 0 ]
+@@ -153,18 +159,21 @@ then
+   exit 1
+ fi
+ 
++
++#LDFLAGS="-L${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9/libs/${ARCHITECTURE}" \
++
+ ./configure --prefix="${GENDIR}/${ARCHITECTURE}" \
+ --host="${bin_prefix}" \
+ --with-sysroot="${SYSROOT}" \
+ --disable-shared \
+ --enable-cross-compile \
+ --with-protoc="${PROTOC_PATH}" \
+-CFLAGS="${march_option}" \
++CFLAGS="${march_option} -D__ANDROID_API__=26" \
+ CXXFLAGS="-frtti -fexceptions ${march_option} \
+ -I${NDK_ROOT}/sources/android/support/include \
+ -I${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9/include \
+ -I${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9/libs/${ARCHITECTURE}/include" \
+-LDFLAGS="-L${NDK_ROOT}/sources/cxx-stl/gnu-libstdc++/4.9/libs/${ARCHITECTURE}" \
++LDFLAGS="-L${NDK_ROOT}/platforms/android-26/arch-arm64 -L{NDK_ROOT}/platforms/android-26/arch-arm64/usr/lib" \
+ LIBS="-llog -lz -lgnustl_static"
+ 
+ if [ $? -ne 0 ]
+diff --git a/tensorflow/contrib/makefile/compile_nsync.sh b/tensorflow/contrib/makefile/compile_nsync.sh
+index cb4c94d92f..46929c2b00 100755
+--- a/tensorflow/contrib/makefile/compile_nsync.sh
++++ b/tensorflow/contrib/makefile/compile_nsync.sh
+@@ -20,8 +20,8 @@
+ set -e
+ 
+ prog=compile_nsync.sh
+-android_api_version=21
+-default_android_arch=armeabi-v7a
++android_api_version=26
++default_android_arch=arm64
+ default_ios_arch="i386 x86_64 armv7 armv7s arm64"
+ 
+ usage="usage: $prog [-t linux|ios|android|macos|native]
+@@ -256,9 +256,9 @@ for arch in $archs; do
+                 esac
+ 
+                 makefile='
+-			AR := ${NDK_ROOT}/toolchains/'"$toolchain"'/prebuilt/'"$android_os_arch"'/bin/'"$bin_prefix"'-ar
++			AR := ${NDK_ROOT}/bin/aarch64-linux-android-ar
+                         CC=${CC_PREFIX} \
+-                           ${NDK_ROOT}/toolchains/'"$toolchain"'/prebuilt/'"$android_os_arch"'/bin/'"$bin_prefix"'-g++
++                           ${NDK_ROOT}/bin/aarch64-linux-android-clang++
+                         PLATFORM_CPPFLAGS=--sysroot \
+                                           $(NDK_ROOT)/platforms/android-'"$android_api_version"'/arch-'"$sysroot_arch"' \
+                                           -DNSYNC_USE_CPP11_TIMEPOINT -DNSYNC_ATOMIC_CPP11 \

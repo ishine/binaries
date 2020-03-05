@@ -1,0 +1,176 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 256e061..6de7812 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -92,7 +92,8 @@ target_include_directories(tts
+ 
+ target_link_libraries( tts
+     # TensorFlow C++
+-    tensorflow_cc
++     tensorflow_framework
++     tensorflow_cc
+ 
+     ${TTS_EXT_LIBS}
+     ${CMAKE_THREAD_LIBS_INIT}
+@@ -102,7 +103,7 @@ target_link_libraries( tts
+ 
+ # Increase warning level for clang.
+ IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+-    target_compile_options(tts PRIVATE -Weverything -Werror -Wno-padded -Wno-c++98-compat-pedantic -Wno-documentation -Wno-documentation-unknown-command)
++    target_compile_options(tts PRIVATE -Weverything -O3 -Wno-padded -Wno-c++98-compat-pedantic -Wno-documentation -Wno-documentation-unknown-command)
+ ENDIF ()
+ 
+ add_sanitizers(tts)
+diff --git a/bootstrap.sh b/bootstrap.sh
+index 57fd5bf..d8f5baa 100755
+--- a/bootstrap.sh
++++ b/bootstrap.sh
+@@ -1,14 +1,20 @@
+ #!/bin/bash
+ 
+ # source code directory of tensorflow
+-TF_DIR=`pwd`/../tensorflow
++#TF_DIR=`pwd`/../tensorflow
++export CC=clang
++export CXX=clang++
++
++TF_DIR=/usr/local/tensorflow-1.13.1
+ 
+ # external source code directory of tensorflow(e.g. Eigen)
+-TF_EXTERNAL_DIR=`pwd`/../tensorflow/bazel-tensorflow
++#TF_EXTERNAL_DIR=`pwd`/../tensorflow/bazel-tensorflow
++TF_EXTERNAL_DIR=/usr/local/tensorflow-1.13.1/bazel-tensorflow-1.13.1
+ 
+ # bazel build directory of tensorflow where `libtensorflow.so` exists.
+ # Please specify absolute path, otherwise cmake cannot find lib**.a
+-TF_BUILD_DIR=`pwd`/../tensorflow/bazel-bin/tensorflow
++#TF_BUILD_DIR=`pwd`/../tensorflow/bazel-bin/tensorflow
++TF_BUILD_DIR=/usr/local/tensorflow-1.13.1/bazel-bin/tensorflow
+ 
+ rm -rf build
+ 
+diff --git a/src/main.cc b/src/main.cc
+index 1c41bba..7aea6fd 100644
+--- a/src/main.cc
++++ b/src/main.cc
+@@ -19,6 +19,9 @@
+ 
+ #include "tf_synthesizer.h"
+ 
++bool LoadSequence(const std::string &sequence_filename, std::vector<int32_t> *sequence);
++
++
+ template<typename T>
+ bool GetNumberArray(const nlohmann::json &j, const std::string &name,
+                     std::vector<T> *value) {
+@@ -78,7 +81,7 @@ bool SaveWav(const std::string &filename, const std::vector<float> &samples, con
+   format.container = drwav_container_riff;     // <-- drwav_container_riff = normal WAV files, drwav_container_w64 = Sony Wave64.
+   format.format = DR_WAVE_FORMAT_PCM; 
+   format.channels = 1;
+-  format.sampleRate = sample_rate;
++  format.sampleRate = (drwav_uint32)sample_rate;
+   format.bitsPerSample = 16;
+   drwav* pWav = drwav_open_file_write(filename.c_str(), &format);
+ 
+@@ -161,8 +164,15 @@ int main(int argc, char **argv) {
+   // Synthesize(generate wav from sequence)
+   tts::TensorflowSynthesizer tf_synthesizer;
+   tf_synthesizer.init(argc, argv);
+-  if (!tf_synthesizer.load(graph_filename, "inputs",
+-                    "model/griffinlim/Squeeze")) {
++
++
++  //if (!tf_synthesizer.load(graph_filename, "inputs",
++  //                  "model/griffinlim/Squeeze")) { 
++
++
++  if (!tf_synthesizer.load(graph_filename, "datafeeder/input_queue",
++                    "model/inference/add")) {
++
+     std::cerr << "Failed to load/setup Tensorflow model from a frozen graph : " << graph_filename << std::endl;
+     return EXIT_FAILURE;
+   }
+diff --git a/src/tf_synthesizer.cc b/src/tf_synthesizer.cc
+index 7be9986..5e89e6f 100644
+--- a/src/tf_synthesizer.cc
++++ b/src/tf_synthesizer.cc
+@@ -14,7 +14,7 @@
+ #include "tensorflow/core/graph/default_device.h"
+ #include "tensorflow/core/graph/graph_def_builder.h"
+ #include "tensorflow/core/lib/core/errors.h"
+-#include "tensorflow/core/lib/core/stringpiece.h"
++//#include "tensorflow/core/lib/core/stringpiece.h"
+ #include "tensorflow/core/lib/core/threadpool.h"
+ #include "tensorflow/core/lib/io/path.h"
+ #include "tensorflow/core/lib/strings/stringprintf.h"
+@@ -25,6 +25,7 @@
+ #include "tensorflow/core/public/session.h"
+ #include "tensorflow/core/util/command_line_flags.h"
+ 
++#include <fstream>
+ #ifdef __clang__
+ #pragma clang diagnostic pop
+ #endif
+@@ -33,7 +34,7 @@
+ 
+ using namespace tensorflow;
+ using namespace tensorflow::ops;
+-
++using namespace std;
+ namespace tts {
+ 
+ namespace {
+@@ -49,6 +50,22 @@ Status LoadGraph(const string& graph_file_name,
+     return tensorflow::errors::NotFound("Failed to load compute graph at '",
+                                         graph_file_name, "'");
+   }
++  printf("Graph sucessfully loaded\n");
++  /* Print graph */
++
++            cout<<graph_def.node(0).name()<<endl;
++            cout<<graph_def.node(1).name()<<endl;
++            cout<<graph_def.node(2).name()<<endl;
++    int i;
++    for (i = 0; i < graph_def.node_size(); i++)
++    {
++        if (graph_def.node(i).name() == "inputs")
++        {
++            graph_def.node(i).PrintDebugString();
++        }
++    }
++
++
+   session->reset(tensorflow::NewSession(tensorflow::SessionOptions()));
+   Status session_create_status = (*session)->Create(graph_def);
+   if (!session_create_status.ok()) {
+@@ -103,7 +120,8 @@ public:
+     // Run
+     std::vector<Tensor> output_tensors;
+     Status run_status = session->Run({{input_layer, input_tensor}, {"input_lengths", input_lengths_tensor}},
+-                                     {output_layer}, {}, &output_tensors);
++    //Status run_status = session->Run({{input_layer, input_tensor} },
++		    {output_layer}, {}, &output_tensors);
+     if (!run_status.ok()) {
+       std::cerr << "Running model failed: " << run_status;
+       return false;
+@@ -123,13 +141,19 @@ public:
+     assert(tensor.dimension(0) > 0);
+     output->resize(tensor.dimension(0));
+     // TODO(LTE): Use memcpy 
++    
++    ofstream fout; 
++    fout.open("feature.txt");
+     for (size_t i = 0; i < output->size(); i++) {
+-      (*output)[i] = tensor(i);
++	    (*output)[i] = tensor(i);
++	    fout << tensor(i) << endl;
+     }
+ 
++    fout.close();
+     return true;
+   }
+ 
++
+ private:
+   std::unique_ptr<tensorflow::Session> session;
+   std::string input_layer, output_layer;

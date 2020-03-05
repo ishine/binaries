@@ -1,0 +1,52 @@
+diff --git a/tensorflow/contrib/makefile/Makefile b/tensorflow/contrib/makefile/Makefile
+index 7ea6e34cf5..728e46c526 100644
+--- a/tensorflow/contrib/makefile/Makefile
++++ b/tensorflow/contrib/makefile/Makefile
+@@ -179,10 +179,10 @@ $(shell mkdir -p $(DEPDIR) >/dev/null)
+ 
+ # Settings for the target compiler.
+ CXX := $(CC_PREFIX) gcc
+-OPTFLAGS := -O2
++OPTFLAGS := -O3 
+ 
+ ifneq ($(TARGET),ANDROID)
+-  OPTFLAGS += -march=native
++  OPTFLAGS += -march=native -O3 -fvectorize
+ endif
+ 
+ CXXFLAGS := --std=c++11 -DIS_SLIM_BUILD -fno-exceptions -DNDEBUG $(OPTFLAGS)
+@@ -908,7 +908,7 @@ $(HOST_GENDIR)%.pb.cc $(HOST_GENDIR)%.pb.h: %.proto
+ # Gets rid of all generated files.
+ clean:
+ 	rm -rf $(MAKEFILE_DIR)/gen
+-	rm -rf tensorflow/core/util/version_info.cc
++	#rm -rf tensorflow/core/util/version_info.cc
+ 
+ # Gets rid of all generated files except protobuf libs generated
+ # before calling make.  This allows users not to recompile proto libs everytime.
+diff --git a/tensorflow/contrib/makefile/compile_android_protobuf.sh b/tensorflow/contrib/makefile/compile_android_protobuf.sh
+index 4355e3e597..b4fef2ae9d 100755
+--- a/tensorflow/contrib/makefile/compile_android_protobuf.sh
++++ b/tensorflow/contrib/makefile/compile_android_protobuf.sh
+@@ -20,7 +20,7 @@
+ 
+ # Pass ANDROID_API_VERSION as an environment variable to support
+ # a different version of API.
+-android_api_version="${ANDROID_API_VERSION:-21}"
++android_api_version="${ANDROID_API_VERSION:-24}"
+ # Pass cc prefix to set the prefix for cc (e.g. ccache)
+ cc_prefix="${CC_PREFIX}"
+ 
+diff --git a/tensorflow/tools/git/gen_git_source.sh b/tensorflow/tools/git/gen_git_source.sh
+index cd128af6b3..c3d78a21b3 100755
+--- a/tensorflow/tools/git/gen_git_source.sh
++++ b/tensorflow/tools/git/gen_git_source.sh
+@@ -26,7 +26,7 @@ if [[ $? != 0 ]]; then
+ fi
+ 
+ cat <<EOF > ${OUTPUT_FILENAME}
+-#include <string>
++//#include <string>
+ const char* tf_git_version() {return "${GIT_VERSION}";}
+ const char* tf_compiler_version() {
+ #ifdef _MSC_VER
