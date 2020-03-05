@@ -1,0 +1,1 @@
+python3 /media/alok/ws/experiments/tensorflow-1.13.1/tensorflow/python/tools/optimize_for_inference.py --input=inference_model.pb --output=opt_model.pb --frozen_graph=True --input_names=inputs,input_lengths --output_names="model/inference/add"
