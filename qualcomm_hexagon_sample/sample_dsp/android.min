@@ -1,0 +1,35 @@
+ifeq ($(CDSP_FLAG), 1) 
+	LIB_DSPRPC = libcdsprpc
+else ifeq ($(MDSP_FLAG), 1) 
+	LIB_DSPRPC = libmdsprpc
+else ifeq ($(SLPI_FLAG), 1) 
+	LIB_DSPRPC = libsdsprpc
+else
+	LIB_DSPRPC = libadsprpc
+endif
+
+$(info ************  LIB=$(LIB_DSPRPC) ************) 
+
+# stub library
+BUILD_DLLS += libsample_dsp
+libsample_dsp_QAICIDLS += inc/sample_dsp
+libsample_dsp_C_SRCS += $V/sample_dsp_stub
+libsample_dsp_DLLS += $(LIB_DSPRPC)
+
+DEFINES += _ANDROID_API_=28
+
+# stand-alone sample_dsp executable
+BUILD_EXES += sample_dsp
+sample_dsp_QAICIDLS += inc/sample_dsp
+sample_dsp_C_SRCS += src/sample_cpu
+sample_dsp_LIBS += rpcmem
+sample_dsp_DLLS += libsample_dsp $(LIB_DSPRPC)
+sample_dsp_LD_FLAGS += -llog -ldl
+sample_dsp_DEFINES += VERIFY_PRINT_ERROR
+
+# copy final build products to the ship directory
+BUILD_COPIES = \
+   $(DLLS) \
+   $(EXES) \
+   $(LIBS) \
+   $(SHIP_DIR)/ ;
