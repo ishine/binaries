@@ -1,0 +1,17 @@
+//============================================================================
+/// @file sample_dsp.idl
+///
+                                                           //qidl copyright
+//% Copyright (c) 2012-2014 Qualcomm Technologies, Inc.
+                                                           //qidl nested=false
+//% All Rights Reserved.
+//% Qualcomm Confidential and Proprietary
+//============================================================================
+
+#include "AEEStdDef.idl"
+
+interface sample_dsp {
+   int8_t sum_float(inrout  float a, inrout float b);
+   int8_t sum_int(inrout  int8_t a, inrout int8_t b);
+};
+
