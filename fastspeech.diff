@@ -1,5 +1,5 @@
 diff --git a/synthesis.py b/synthesis.py
-index dc5ce95..3a2964c 100644
+index dc5ce95..855c7d4 100644
 --- a/synthesis.py
 +++ b/synthesis.py
 @@ -13,7 +13,10 @@ import utils
@@ -21,7 +21,7 @@ index dc5ce95..3a2964c 100644
 -
 +    start = time.time()
 +    #words = "Today, I installed the software update from Ubuntu. Then on reboot, I never got to login screen. Something kept flashing on screen, but was too fast to see what it was saying."
-+    words = "Google News is a news aggregator and app developed by Google. It presents a continuous, customizable flow of articles organized from thousands of publishers and magazines."
++    words = "BBC News is a news aggregator and app developed by Google. It presents a continuous, customizable flow of articles organized from thousands of publishers and magazines."
 +    #words = "take me to california"
      mel, mel_postnet, mel_torch, mel_postnet_torch = synthesis(
          model, words, alpha=alpha)
@@ -51,8 +51,9 @@ index dc5ce95..3a2964c 100644
 +
 +    start = time.time()
 +    #wave_glow = utils.get_WaveGlow()
-+    melspec = torch.squeeze(mel_postnet_torch, 0) 
-+    torch.save(melspec, "/tmp/test.pt")
++    #IMPOPRTANT:uncomment unsqueeze in inference.py in Squeueze.if you are not squeezing here
++    #melspec = torch.squeeze(mel_postnet_torch, 0) 
++    torch.save(mel_postnet_torch, "/tmp/test.pt")
 +
 +    #waveglow.inference.inference(mel_postnet_torch, wave_glow, os.path.join(
 +    #    "results", words + "_" + str(num) + "_waveglow.wav"))
