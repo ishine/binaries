@@ -1,0 +1,182 @@
+diff --git a/audio/hparams.py b/audio/hparams.py
+index c27408f..1df96a6 100644
+--- a/audio/hparams.py
++++ b/audio/hparams.py
+@@ -3,6 +3,6 @@ sampling_rate = 22050
+ filter_length = 1024
+ hop_length = 256
+ win_length = 1024
+-n_mel_channels = 80
++n_mel_channels = 20
+ mel_fmin = 0.0
+ mel_fmax = 8000.0
+diff --git a/audio/stft.py b/audio/stft.py
+index 520510c..71fde8e 100644
+--- a/audio/stft.py
++++ b/audio/stft.py
+@@ -119,7 +119,7 @@ class STFT(torch.nn.Module):
+ 
+ class TacotronSTFT(torch.nn.Module):
+     def __init__(self, filter_length=1024, hop_length=256, win_length=1024,
+-                 n_mel_channels=80, sampling_rate=22050, mel_fmin=0.0,
++                 n_mel_channels=20, sampling_rate=16000, mel_fmin=0.0,
+                  mel_fmax=8000.0):
+         super(TacotronSTFT, self).__init__()
+         self.n_mel_channels = n_mel_channels
+diff --git a/data/ljspeech.py b/data/ljspeech.py
+index d6abd5d..4ee97d9 100644
+--- a/data/ljspeech.py
++++ b/data/ljspeech.py
+@@ -1,7 +1,7 @@
+ import numpy as np
+ import os
+ import audio as Audio
+-
++import subprocess
+ 
+ def build_from_path(in_dir, out_dir):
+     index = 1
+@@ -10,7 +10,7 @@ def build_from_path(in_dir, out_dir):
+     with open(os.path.join(in_dir, 'metadata.csv'), encoding='utf-8') as f:
+         for line in f:
+             parts = line.strip().split('|')
+-            wav_path = os.path.join(in_dir, 'wavs', '%s.wav' % parts[0])
++            wav_path = os.path.join(in_dir, 'pcms', '%s.s16' % parts[0])
+             text = parts[2]
+             out.append(_process_utterance(out_dir, index, wav_path, text))
+ 
+@@ -23,12 +23,19 @@ def build_from_path(in_dir, out_dir):
+ 
+ def _process_utterance(out_dir, index, wav_path, text):
+     # Compute a mel-scale spectrogram from the wav:
+-    mel_spectrogram = Audio.tools.get_mel(wav_path).numpy().astype(np.float32)
+-    # print(mel_spectrogram)
++    #mel_spectrogram = Audio.tools.get_mel(wav_path).numpy().astype(np.float32)
+ 
+     # Write the spectrograms to disk:
+     mel_filename = 'ljspeech-mel-%05d.npy' % index
+-    np.save(os.path.join(out_dir, mel_filename),
+-            mel_spectrogram.T, allow_pickle=False)
++    outfile = out_dir + "/" + mel_filename
++    
++    #dump_data converts PCM to F32/NPY using lpcnet repo of https://github.com/MlWoo/LPCNet , compile 
++    #make clean && make dump_data taco=1
++    subprocess.run(["/mount/data/fastspeech_lpcnet/LPCNet/dump_data","-test",wav_path,outfile])
++    mel_target = np.fromfile(outfile, dtype='float32')
++    mel_target = np.resize(mel_target, (-1, 20))
++    np.save(os.path.join(outfile),
++            mel_target, allow_pickle=True)
+ 
+     return text
++
+diff --git a/dataset.py b/dataset.py
+index 3e2f376..0fd5e0f 100644
+--- a/dataset.py
++++ b/dataset.py
+@@ -18,7 +18,7 @@ class FastSpeechDataset(Dataset):
+     """ LJSpeech """
+ 
+     def __init__(self):
+-        self.text = process_text(os.path.join("data", "train.txt"))
++        self.text = process_text(os.path.join("../dataset", "train.txt"))
+ 
+     def __len__(self):
+         return len(self.text)
+diff --git a/hparams.py b/hparams.py
+index e4d5d5c..4a683e9 100644
+--- a/hparams.py
++++ b/hparams.py
+@@ -4,8 +4,8 @@ from text import symbols
+ text_cleaners = ['english_cleaners']
+ 
+ # Mel
+-n_mel_channels = 80
+-num_mels = 80
++n_mel_channels = 20
++num_mels = 20
+ 
+ # FastSpeech
+ vocab_size = 1024
+@@ -38,7 +38,7 @@ checkpoint_path = "./model_new"
+ logger_path = "./logger"
+ mel_ground_truth = "./mels"
+ 
+-batch_size = 64
++batch_size = 16
+ epochs = 1000
+ n_warm_up_step = 4000
+ 
+diff --git a/preprocess.py b/preprocess.py
+index b7dbfc3..ef8971b 100644
+--- a/preprocess.py
++++ b/preprocess.py
+@@ -20,7 +20,7 @@ def preprocess_ljspeech(filename):
+     write_metadata(metadata, out_dir)
+ 
+     shutil.move(os.path.join(hp.mel_ground_truth, "train.txt"),
+-                os.path.join("data", "train.txt"))
++                os.path.join("../dataset", "train.txt"))
+ 
+ 
+ def write_metadata(metadata, out_dir):
+@@ -30,10 +30,10 @@ def write_metadata(metadata, out_dir):
+ 
+ 
+ def main():
+-    path = os.path.join("data", "LJSpeech-1.1")
++    path = os.path.join("../dataset", "LJSpeech-1.1")
+     preprocess_ljspeech(path)
+ 
+-    text_path = os.path.join("data", "train.txt")
++    text_path = os.path.join("../dataset", "train.txt")
+     texts = process_text(text_path)
+ 
+     if not os.path.exists(hp.alignment_path):
+@@ -54,7 +54,7 @@ def main():
+         _, _, D = load_data(character, mel_gt_target, tacotron2)
+ 
+         np.save(os.path.join(hp.alignment_path, str(
+-            ind+num) + ".npy"), D, allow_pickle=False)
++            ind+num) + ".npy"), D, allow_pickle=True)
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/tacotron2/hparams.py b/tacotron2/hparams.py
+index f4f8fb5..464c465 100644
+--- a/tacotron2/hparams.py
++++ b/tacotron2/hparams.py
+@@ -36,7 +36,7 @@ class Hparams:
+         self.filter_length = 1024
+         self.hop_length = 256
+         self.win_length = 1024
+-        self.n_mel_channels = 80
++        self.n_mel_channels = 20
+         self.mel_fmin = 0.0
+         self.mel_fmax = 8000.0
+ 
+diff --git a/train.py b/train.py
+index d4307c5..f10232f 100644
+--- a/train.py
++++ b/train.py
+@@ -66,7 +66,7 @@ def main(args):
+         # Get Training Loader
+         training_loader = DataLoader(dataset,
+                                      batch_size=hp.batch_size**2,
+-                                     shuffle=True,
++                                     shuffle=False,
+                                      collate_fn=collate_fn,
+                                      drop_last=True,
+                                      num_workers=0)
+diff --git a/transformer/Layers.py b/transformer/Layers.py
+index a2db196..b54af21 100644
+--- a/transformer/Layers.py
++++ b/transformer/Layers.py
+@@ -170,7 +170,7 @@ class PostNet(nn.Module):
+     """
+ 
+     def __init__(self,
+-                 n_mel_channels=80,
++                 n_mel_channels=20,
+                  postnet_embedding_dim=512,
+                  postnet_kernel_size=5,
+                  postnet_n_convolutions=5):
